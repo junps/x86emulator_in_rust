@@ -34,6 +34,44 @@ impl Emulator {
         emu.registers[Register::ESP as usize] = esp;
         emu
     }
+
+    fn get_code8(&self, index: usize) -> u32 {
+        self.memory[self.eip + index] as u32
+    }
+
+    fn get_sign_code8(&self, index: usize) -> i32 {
+        (self.memory[self.eip + index] as i8) as i32
+    }
+
+    fn get_code32(&self, index: usize) -> u32 {
+        let mut ret: u32 = 0;
+        for pos in 0..4 {
+            ret |= self.get_code8(index + pos) << (pos * 8);
+        }
+        ret
+    }
+
+    fn nop(&mut self) {}
+
+    fn mov_r32_imm32(&mut self) {
+        let reg = self.get_code8(0) - 0xB8;
+        let value = self.get_code32(1);
+        self.registers[reg as usize] = value;
+        self.eip += 5;
+    }
+
+    fn short_jmp(&mut self) {
+        let diff = self.get_sign_code8(1);
+        self.eip = (diff + 2 + (self.eip as i32)) as usize;
+    }
+
+    fn call_instruction(&mut self, opcode: usize) {
+        match opcode {
+            0xB8..=0xC0 => self.mov_r32_imm32(),
+            0xEB => self.short_jmp(),
+            _ => unreachable!(),
+        }
+    }
 }
 
 fn main() -> std::io::Result<()> {
