@@ -14,6 +14,7 @@ enum Register {
     EDI,
     RegistersCount,
 }
+const REGISTERS_NAME: [&str; 8] = ["EAX", "ECX", "EDX", "EBX", "ESP", "EBP", "ESI", "EDI"];
 
 #[derive(Debug)]
 struct Emulator {
@@ -35,12 +36,19 @@ impl Emulator {
         emu
     }
 
+    fn dump_registers(&self) {
+        for (idx, name) in REGISTERS_NAME.iter().enumerate() {
+            println!("{} = {:08x}({1})", name, self.registers[idx]);
+        }
+        println!("EIP = {}", self.eip);
+    }
+
     fn get_code8(&self, index: usize) -> u32 {
         self.memory[self.eip + index] as u32
     }
 
     fn get_sign_code8(&self, index: usize) -> i32 {
-        (self.memory[self.eip + index] as i8) as i32
+        self.memory[self.eip + index] as i32
     }
 
     fn get_code32(&self, index: usize) -> u32 {
@@ -50,8 +58,6 @@ impl Emulator {
         }
         ret
     }
-
-    fn nop(&mut self) {}
 
     fn mov_r32_imm32(&mut self) {
         let reg = self.get_code8(0) - 0xB8;
@@ -65,12 +71,15 @@ impl Emulator {
         self.eip = (diff + 2 + (self.eip as i32)) as usize;
     }
 
-    fn call_instruction(&mut self, opcode: usize) {
+    fn call_instruction(&mut self, opcode: u32) -> Result<(), String> {
         match opcode {
             0xB8..=0xC0 => self.mov_r32_imm32(),
             0xEB => self.short_jmp(),
-            _ => unreachable!(),
+            _ => {
+                return Err(format!("Not implemented for: {}", opcode));
+            }
         }
+        Ok(())
     }
 }
 
@@ -80,11 +89,24 @@ fn main() -> std::io::Result<()> {
         return Err(Error::new(ErrorKind::Other, "num of args should be 2."));
     }
     let mut file = File::open(&args[1])?;
+    let len = file.metadata().unwrap().len();
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
     println!("{:?}", buffer);
     let mut emu = Emulator::new(MEMORY_SIZE, 0x0000, 0x7c00);
     emu.memory = buffer;
     println!("{:?}", emu);
+
+    while emu.eip < MEMORY_SIZE {
+        let opcode = emu.get_code8(0);
+        println!("{}", opcode);
+        if let Err(s) = emu.call_instruction(opcode) {
+            return Err(Error::new(ErrorKind::Other, s));
+        }
+        if emu.eip >= len as usize || emu.eip == 0x00 {
+            break;
+        }
+    }
+    emu.dump_registers();
     Ok(())
 }
