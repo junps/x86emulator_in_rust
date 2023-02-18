@@ -40,7 +40,7 @@ impl Emulator {
         for (idx, name) in REGISTERS_NAME.iter().enumerate() {
             println!("{} = {:08x}({1})", name, self.registers[idx]);
         }
-        println!("EIP = {}", self.eip);
+        println!("EIP = {:08x}({0})", self.eip);
     }
 
     fn get_code8(&self, index: usize) -> u32 {
@@ -59,6 +59,10 @@ impl Emulator {
         ret
     }
 
+    fn get_sign_code32(&self, index: usize) -> i32 {
+        self.get_code32(index) as i32
+    }
+
     fn mov_r32_imm32(&mut self) {
         let reg = self.get_code8(0) - 0xB8;
         let value = self.get_code32(1);
@@ -71,9 +75,15 @@ impl Emulator {
         self.eip = (diff + 2 + (self.eip as i32)) as usize;
     }
 
+    fn near_jmp(&mut self) {
+        let diff = self.get_sign_code32(1);
+        self.eip = (diff + 5 + (self.eip as i32)) as usize;
+    }
+
     fn call_instruction(&mut self, opcode: u32) -> Result<(), String> {
         match opcode {
             0xB8..=0xC0 => self.mov_r32_imm32(),
+            0xE9 => self.near_jmp(),
             0xEB => self.short_jmp(),
             _ => {
                 return Err(format!("Not implemented for: {}", opcode));
@@ -92,10 +102,9 @@ fn main() -> std::io::Result<()> {
     let len = file.metadata().unwrap().len();
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
-    println!("{:?}", buffer);
-    let mut emu = Emulator::new(MEMORY_SIZE, 0x0000, 0x7c00);
-    emu.memory = buffer;
-    println!("{:?}", emu);
+    let mut emu = Emulator::new(MEMORY_SIZE, 0x7c00, 0x7c00);
+    emu.memory = vec![0; 0x7c00];
+    emu.memory.extend(buffer);
 
     while emu.eip < MEMORY_SIZE {
         let opcode = emu.get_code8(0);
