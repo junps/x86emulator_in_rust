@@ -1,7 +1,9 @@
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read};
 mod emulator;
+mod modrm;
 use emulator::*;
+use modrm::*;
 
 const MEMORY_SIZE: usize = 1024 * 1024;
 
@@ -32,6 +34,9 @@ fn main() -> std::io::Result<()> {
         if emu.eip >= len as usize || emu.eip == 0x00 {
             break;
         }
+        // if emu.eip == 0x00 {
+        //     break;
+        // }
     }
     emu.dump_registers();
     Ok(())
